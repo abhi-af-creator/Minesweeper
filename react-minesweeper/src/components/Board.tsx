@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Cell from "./Cell";
-import { createBoard, revealCell, toggleFlag } from "../utils/gameLogic";
+import { createBoard, revealCell, toggleFlag } from "../utils/gamelogic";
 import type { CellType } from "../utils/types";
 
 const ROWS = 8;
@@ -8,12 +8,42 @@ const COLS = 8;
 const MINES = 10;
 
 function Board() {
+  // Game board
   const [board, setBoard] = useState<CellType[][]>(() =>
     createBoard(ROWS, COLS, MINES)
   );
 
-  const checkWin = (board: CellType[][]) => {
-    for (const row of board) {
+  // Timer & game state
+  const [seconds, setSeconds] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+
+  // Best time (persisted)
+  const [bestTime, setBestTime] = useState<number | null>(() => {
+    const stored = localStorage.getItem("bestTime");
+    return stored ? Number(stored) : null;
+  });
+
+  /* ---------------- TIMER ---------------- */
+  useEffect(() => {
+    if (gameOver) return;
+
+    const interval = setInterval(() => {
+      setSeconds((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameOver]);
+
+  /* ---------------- RESET ---------------- */
+  const resetGame = () => {
+    setBoard(createBoard(ROWS, COLS, MINES));
+    setSeconds(0);
+    setGameOver(false);
+  };
+
+  /* ---------------- WIN CHECK ---------------- */
+  const checkWin = (currentBoard: CellType[][]) => {
+    for (const row of currentBoard) {
       for (const cell of row) {
         if (!cell.isMine && !cell.isRevealed) {
           return false;
@@ -23,15 +53,31 @@ function Board() {
     return true;
   };
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div>
-      <button
-        onClick={() => setBoard(createBoard(ROWS, COLS, MINES))}
-        style={{ marginBottom: "10px" }}
+      {/* Header: Timer, Best Time, Reset */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: "10px",
+          alignItems: "center",
+        }}
       >
-        Restart
-      </button>
+        <div>
+          ⏱ Time: <strong>{seconds}s</strong>
+        </div>
 
+        <div>
+          🏆 Best:{" "}
+          <strong>{bestTime !== null ? `${bestTime}s` : "--"}</strong>
+        </div>
+
+        <button onClick={resetGame}>Reset</button>
+      </div>
+
+      {/* Game Grid */}
       <div
         style={{
           display: "grid",
@@ -53,21 +99,30 @@ function Board() {
                   : ""
               }
               onClick={() => {
-                if (cell.isFlagged || cell.isRevealed) return;
+                if (gameOver || cell.isFlagged || cell.isRevealed) return;
 
                 if (cell.isMine) {
+                  setGameOver(true);
                   alert("💥 Game Over!");
                   return;
                 }
 
-                const updated = revealCell(board, r, c);
-                setBoard(updated);
+                const updatedBoard = revealCell(board, r, c);
+                setBoard(updatedBoard);
 
-                if (checkWin(updated)) {
-                  alert("🎉 You Win!");
+                if (checkWin(updatedBoard)) {
+                  setGameOver(true);
+
+                  if (bestTime === null || seconds < bestTime) {
+                    localStorage.setItem("bestTime", seconds.toString());
+                    setBestTime(seconds);
+                  }
+
+                  alert(`🎉 You Win in ${seconds} seconds!`);
                 }
               }}
               onRightClick={() => {
+                if (gameOver) return;
                 setBoard(toggleFlag(board, r, c));
               }}
             />
