@@ -38,7 +38,7 @@ function App() {
         </div>
       </div>
 
-      <Board />
+      <Board username={username} />
     </div>
   );
 }

@@ -4,13 +4,19 @@ import { createBoard, revealCell, toggleFlag } from "../utils/gamelogic";
 import type { CellType, Difficulty, DifficultyConfig } from "../utils/types";
 import "./Board.css";
 
+const API_URL = "http://localhost:5000/api";
+
 const DIFFICULTY_CONFIG: Record<Difficulty, DifficultyConfig> = {
   easy: { rows: 5, cols: 5, mines: 3 },
   medium: { rows: 10, cols: 10, mines: 20 },
   hard: { rows: 20, cols: 20, mines: 80 },
 };
 
-function Board() {
+interface BoardProps {
+  username: string;
+}
+
+function Board({ username }: BoardProps) {
   // Game state
   const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [board, setBoard] = useState<CellType[][]>(() =>
@@ -41,15 +47,50 @@ function Board() {
     }
   );
 
-  // All scores for each difficulty (for leaderboard)
-  const [allScores, setAllScores] = useState<Record<Difficulty, number[]>>(
+  // All scores for each difficulty (from database)
+  const [allScores, setAllScores] = useState<Record<Difficulty, Array<{ username: string; score: number }>>>(
     () => {
-      const stored = localStorage.getItem("allScores");
-      return stored
-        ? JSON.parse(stored)
-        : { easy: [], medium: [], hard: [] };
+      return { easy: [], medium: [], hard: [] };
     }
   );
+
+  // Load scores from database on mount and when difficulty changes
+  useEffect(() => {
+    fetchLeaderboard();
+  }, [difficulty]);
+
+  const fetchLeaderboard = async () => {
+    try {
+      const response = await fetch(`${API_URL}/scores/${difficulty}`);
+      const data = await response.json();
+      setAllScores((prev) => ({
+        ...prev,
+        [difficulty]: data,
+      }));
+    } catch (error) {
+      console.error('Error fetching leaderboard:', error);
+    }
+  };
+
+  const saveScore = async (score: number) => {
+    try {
+      await fetch(`${API_URL}/scores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username,
+          difficulty,
+          score,
+        }),
+      });
+      // Refresh leaderboard after saving
+      fetchLeaderboard();
+    } catch (error) {
+      console.error('Error saving score:', error);
+    }
+  };
 
   /* ---------------- TIMER ---------------- */
   useEffect(() => {
@@ -229,13 +270,8 @@ function Board() {
                       setBestTimes(newBestTimes);
                     }
 
-                    // Add score to all scores and keep top 5
-                    const newAllScores = { ...allScores };
-                    newAllScores[difficulty] = [...newAllScores[difficulty], seconds];
-                    newAllScores[difficulty].sort((a, b) => a - b);
-                    newAllScores[difficulty] = newAllScores[difficulty].slice(0, 5);
-                    localStorage.setItem("allScores", JSON.stringify(newAllScores));
-                    setAllScores(newAllScores);
+                    // Save score to database
+                    saveScore(seconds);
                   }
                 }}
                 onRightClick={() => {
@@ -425,10 +461,10 @@ function Board() {
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </h2>
                 {allScores[level] && allScores[level].length > 0 ? (
-                  <ol style={{ paddingLeft: "20px", fontSize: "18px", color: "#333" }}>
-                    {allScores[level].map((score, index) => (
+                  <ol style={{ paddingLeft: "20px", fontSize: "16px", color: "#333" }}>
+                    {allScores[level].map((item: any, index) => (
                       <li key={index} style={{ marginBottom: "8px" }}>
-                        {score}s
+                        <span style={{ fontWeight: "bold" }}>{item.username}</span> - <span style={{ color: "#4CAF50", fontWeight: "bold" }}>{item.score}s</span>
                       </li>
                     ))}
                   </ol>
