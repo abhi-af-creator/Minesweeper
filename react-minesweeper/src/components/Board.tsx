@@ -115,13 +115,19 @@ function Board() {
         </div>
       </div>
 
-      {/* Header: Timer, Best Time, Reset */}
+      {/* Header: Timer, Best Time */}
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "center",
+          gap: "30px",
           marginBottom: "10px",
           alignItems: "center",
+          padding: "10px 15px",
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          borderRadius: "8px",
+          color: "#ffffff",
+          fontSize: "16px",
         }}
       >
         <div>
@@ -131,72 +137,94 @@ function Board() {
         <div>
           🏆 Best ({difficulty}): <strong>{currentBestTime !== null ? `${currentBestTime}s` : "--"}</strong>
         </div>
-
-        <button onClick={resetGame}>Reset</button>
       </div>
 
-      {/* Game Grid with Minefield Background */}
-      <div className={`board-wrapper ${isExploding ? "exploding" : ""}`}>
-        <div
-          className="game-grid"
-          style={{
-            gridTemplateColumns: `repeat(${config.cols}, 40px)`,
-          }}
-        >
-          {board.map((row, r) =>
-          row.map((cell, c) => (
-            <Cell
-              key={`${cell.row}-${cell.col}`}
-              isRevealed={cell.isRevealed}
-              isFlagged={cell.isFlagged}
-              isExploding={isExploding && exploringCell?.row === r && exploringCell?.col === c}
-              value={
-                cell.isMine
-                  ? "💣"
-                  : cell.adjacentMines > 0
-                  ? cell.adjacentMines.toString()
-                  : ""
-              }
-              onClick={() => {
-                if (gameOver || cell.isFlagged || cell.isRevealed) return;
-
-                if (cell.isMine) {
-                  setExploringCell({ row: r, col: c });
-                  setIsExploding(true);
-                  setGameOver(true);
-                  setTimeout(() => {
-                    alert("💥 Game Over!");
-                  }, 300);
-                  return;
+      {/* Game Grid with Reset Button */}
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+        {/* Game Grid with Minefield Background */}
+        <div className={`board-wrapper ${isExploding ? "exploding" : ""}`}>
+          <div
+            className="game-grid"
+            style={{
+              gridTemplateColumns: `repeat(${config.cols}, 40px)`,
+            }}
+          >
+            {board.map((row, r) =>
+            row.map((cell, c) => (
+              <Cell
+                key={`${cell.row}-${cell.col}`}
+                isRevealed={cell.isRevealed}
+                isFlagged={cell.isFlagged}
+                isExploding={isExploding && exploringCell?.row === r && exploringCell?.col === c}
+                value={
+                  cell.isMine
+                    ? "💣"
+                    : cell.adjacentMines > 0
+                    ? cell.adjacentMines.toString()
+                    : ""
                 }
+                onClick={() => {
+                  if (gameOver || cell.isFlagged || cell.isRevealed) return;
 
-                const updatedBoard = revealCell(board, r, c);
-                setBoard(updatedBoard);
-
-                if (checkWin(updatedBoard)) {
-                  setGameOver(true);
-
-                  const newBestTimes = { ...bestTimes };
-                  if (
-                    newBestTimes[difficulty] === null ||
-                    seconds < newBestTimes[difficulty]!
-                  ) {
-                    newBestTimes[difficulty] = seconds;
-                    localStorage.setItem("bestTimes", JSON.stringify(newBestTimes));
-                    setBestTimes(newBestTimes);
+                  if (cell.isMine) {
+                    setExploringCell({ row: r, col: c });
+                    setIsExploding(true);
+                    setGameOver(true);
+                    setTimeout(() => {
+                      alert("💥 Game Over!");
+                    }, 300);
+                    return;
                   }
 
-                  alert(`🎉 You Win in ${seconds} seconds!`);
-                }
-              }}
-              onRightClick={() => {
-                if (gameOver) return;
-                setBoard(toggleFlag(board, r, c));
-              }}
-            />
-          ))
-        )}
+                  const updatedBoard = revealCell(board, r, c);
+                  setBoard(updatedBoard);
+
+                  if (checkWin(updatedBoard)) {
+                    setGameOver(true);
+
+                    const newBestTimes = { ...bestTimes };
+                    if (
+                      newBestTimes[difficulty] === null ||
+                      seconds < newBestTimes[difficulty]!
+                    ) {
+                      newBestTimes[difficulty] = seconds;
+                      localStorage.setItem("bestTimes", JSON.stringify(newBestTimes));
+                      setBestTimes(newBestTimes);
+                    }
+
+                    alert(`🎉 You Win in ${seconds} seconds!`);
+                  }
+                }}
+                onRightClick={() => {
+                  if (gameOver) return;
+                  setBoard(toggleFlag(board, r, c));
+                }}
+              />
+            ))
+          )}
+          </div>
         </div>
+
+        {/* Reset Button on the Side */}
+        <button 
+          onClick={resetGame}
+          style={{
+            padding: "10px 20px",
+            fontSize: "16px",
+            height: "fit-content",
+            backgroundColor: "#4CAF50",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold",
+            transition: "background-color 0.3s",
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
+        >
+          Reset
+        </button>
       </div>
     </div>
   );
