@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Cell from "./Cell";
 import { createBoard, revealCell, toggleFlag } from "../utils/gamelogic";
 import type { CellType, Difficulty, DifficultyConfig } from "../utils/types";
@@ -139,6 +139,7 @@ function Board({ username }: BoardProps) {
     setIsWon(false);
     setIsLost(false);
     setIsFirstClick(true);
+    // Don't reset session best time - it persists within the same difficulty
   };
 
   /* ---------------- CHANGE DIFFICULTY ---------------- */
@@ -153,6 +154,8 @@ function Board({ username }: BoardProps) {
     setIsWon(false);
     setIsLost(false);
     setIsFirstClick(true);
+    // Reset session best time when changing difficulty
+    setSessionBestTime(null);
   };
 
   /* ---------------- WIN CHECK ---------------- */
@@ -167,8 +170,66 @@ function Board({ username }: BoardProps) {
     return true;
   };
 
+  /* ---------------- CELL CLICK HANDLER WITH PROPER STATE DEPENDENCIES ---------------- */
+  const handleCellClick = useCallback((r: number, c: number) => {
+    if (gameOver || board[r][c].isFlagged || board[r][c].isRevealed) return;
+
+    let currentBoard = board;
+
+    // If it's the first click and it's a mine, regenerate the board
+    if (isFirstClick && currentBoard[r][c].isMine) {
+      const config = DIFFICULTY_CONFIG[difficulty];
+      let newBoard = createBoard(config.rows, config.cols, config.mines);
+      
+      // Keep regenerating until the first clicked cell is not a mine
+      while (newBoard[r][c].isMine) {
+        newBoard = createBoard(config.rows, config.cols, config.mines);
+      }
+      currentBoard = newBoard;
+      setBoard(currentBoard);
+    }
+
+    setIsFirstClick(false);
+
+    if (currentBoard[r][c].isMine) {
+      setExploringCell({ row: r, col: c });
+      setIsExploding(true);
+      setGameOver(true);
+      setIsLost(true);
+      return;
+    }
+
+    const updatedBoard = revealCell(currentBoard, r, c);
+    setBoard(updatedBoard);
+
+    if (checkWin(updatedBoard)) {
+      setGameOver(true);
+      setIsWon(true);
+
+      // Update session best time
+      if (sessionBestTime === null || seconds < sessionBestTime) {
+        setSessionBestTime(seconds);
+      }
+
+      // Also save to persistent storage and database
+      const newBestTimes = { ...bestTimes };
+      if (
+        newBestTimes[difficulty] === null ||
+        seconds < newBestTimes[difficulty]!
+      ) {
+        newBestTimes[difficulty] = seconds;
+        localStorage.setItem("bestTimes", JSON.stringify(newBestTimes));
+        setBestTimes(newBestTimes);
+      }
+
+      // Save score to database
+      saveScore(seconds);
+    }
+  }, [gameOver, board, isFirstClick, difficulty, sessionBestTime, seconds, bestTimes, saveScore, checkWin, setSessionBestTime]);
+
   const config = DIFFICULTY_CONFIG[difficulty];
-  const currentBestTime = bestTimes[difficulty];
+  // Show session best time on the game page
+  // const currentBestTime = bestTimes[difficulty];
 
   /* ---------------- RENDER ---------------- */
   return (
@@ -221,7 +282,7 @@ function Board({ username }: BoardProps) {
         </div>
 
         <div>
-          🏆 Best ({difficulty}): <strong>{currentBestTime !== null ? `${currentBestTime}s` : "--"}</strong>
+          🏆 Best ({difficulty}): <strong>{sessionBestTime !== null ? `${sessionBestTime}s` : "--"}</strong>
         </div>
       </div>
 
@@ -249,56 +310,7 @@ function Board({ username }: BoardProps) {
                     ? cell.adjacentMines.toString()
                     : ""
                 }
-                onClick={() => {
-                  if (gameOver || cell.isFlagged || cell.isRevealed) return;
-
-                  let currentBoard = board;
-
-                  // If it's the first click and it's a mine, regenerate the board
-                  if (isFirstClick && cell.isMine) {
-                    const config = DIFFICULTY_CONFIG[difficulty];
-                    let newBoard = createBoard(config.rows, config.cols, config.mines);
-                    
-                    // Keep regenerating until the first clicked cell is not a mine
-                    while (newBoard[r][c].isMine) {
-                      newBoard = createBoard(config.rows, config.cols, config.mines);
-                    }
-                    
-                    setBoard(newBoard);
-                    currentBoard = newBoard;
-                  }
-
-                  setIsFirstClick(false);
-
-                  if (currentBoard[r][c].isMine) {
-                    setExploringCell({ row: r, col: c });
-                    setIsExploding(true);
-                    setGameOver(true);
-                    setIsLost(true);
-                    return;
-                  }
-
-                  const updatedBoard = revealCell(currentBoard, r, c);
-                  setBoard(updatedBoard);
-
-                  if (checkWin(updatedBoard)) {
-                    setGameOver(true);
-                    setIsWon(true);
-
-                    const newBestTimes = { ...bestTimes };
-                    if (
-                      newBestTimes[difficulty] === null ||
-                      seconds < newBestTimes[difficulty]!
-                    ) {
-                      newBestTimes[difficulty] = seconds;
-                      localStorage.setItem("bestTimes", JSON.stringify(newBestTimes));
-                      setBestTimes(newBestTimes);
-                    }
-
-                    // Save score to database
-                    saveScore(seconds);
-                  }
-                }}
+                onClick={() => handleCellClick(r, c)}
                 onRightClick={() => {
                   if (gameOver) return;
                   setBoard(toggleFlag(board, r, c));
