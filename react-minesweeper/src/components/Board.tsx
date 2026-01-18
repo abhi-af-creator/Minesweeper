@@ -22,10 +22,14 @@ function Board() {
   );
   const [exploringCell, setExploringCell] = useState<{ row: number; col: number } | null>(null);
   const [isExploding, setIsExploding] = useState(false);
+  const [isFirstClick, setIsFirstClick] = useState(true);
 
   // Timer & game state
   const [seconds, setSeconds] = useState(0);
   const [gameOver, setGameOver] = useState(false);
+  const [isWon, setIsWon] = useState(false);
+  const [isLost, setIsLost] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   // Best times for each difficulty (persisted separately)
   const [bestTimes, setBestTimes] = useState<Record<Difficulty, number | null>>(
@@ -34,6 +38,16 @@ function Board() {
       return stored
         ? JSON.parse(stored)
         : { easy: null, medium: null, hard: null };
+    }
+  );
+
+  // All scores for each difficulty (for leaderboard)
+  const [allScores, setAllScores] = useState<Record<Difficulty, number[]>>(
+    () => {
+      const stored = localStorage.getItem("allScores");
+      return stored
+        ? JSON.parse(stored)
+        : { easy: [], medium: [], hard: [] };
     }
   );
 
@@ -56,6 +70,9 @@ function Board() {
     setGameOver(false);
     setExploringCell(null);
     setIsExploding(false);
+    setIsWon(false);
+    setIsLost(false);
+    setIsFirstClick(true);
   };
 
   /* ---------------- CHANGE DIFFICULTY ---------------- */
@@ -67,6 +84,9 @@ function Board() {
     setGameOver(false);
     setExploringCell(null);
     setIsExploding(false);
+    setIsWon(false);
+    setIsLost(false);
+    setIsFirstClick(true);
   };
 
   /* ---------------- WIN CHECK ---------------- */
@@ -166,21 +186,38 @@ function Board() {
                 onClick={() => {
                   if (gameOver || cell.isFlagged || cell.isRevealed) return;
 
-                  if (cell.isMine) {
+                  let currentBoard = board;
+
+                  // If it's the first click and it's a mine, regenerate the board
+                  if (isFirstClick && cell.isMine) {
+                    const config = DIFFICULTY_CONFIG[difficulty];
+                    let newBoard = createBoard(config.rows, config.cols, config.mines);
+                    
+                    // Keep regenerating until the first clicked cell is not a mine
+                    while (newBoard[r][c].isMine) {
+                      newBoard = createBoard(config.rows, config.cols, config.mines);
+                    }
+                    
+                    setBoard(newBoard);
+                    currentBoard = newBoard;
+                  }
+
+                  setIsFirstClick(false);
+
+                  if (currentBoard[r][c].isMine) {
                     setExploringCell({ row: r, col: c });
                     setIsExploding(true);
                     setGameOver(true);
-                    setTimeout(() => {
-                      alert("💥 Game Over!");
-                    }, 300);
+                    setIsLost(true);
                     return;
                   }
 
-                  const updatedBoard = revealCell(board, r, c);
+                  const updatedBoard = revealCell(currentBoard, r, c);
                   setBoard(updatedBoard);
 
                   if (checkWin(updatedBoard)) {
                     setGameOver(true);
+                    setIsWon(true);
 
                     const newBestTimes = { ...bestTimes };
                     if (
@@ -192,7 +229,13 @@ function Board() {
                       setBestTimes(newBestTimes);
                     }
 
-                    alert(`🎉 You Win in ${seconds} seconds!`);
+                    // Add score to all scores and keep top 5
+                    const newAllScores = { ...allScores };
+                    newAllScores[difficulty] = [...newAllScores[difficulty], seconds];
+                    newAllScores[difficulty].sort((a, b) => a - b);
+                    newAllScores[difficulty] = newAllScores[difficulty].slice(0, 5);
+                    localStorage.setItem("allScores", JSON.stringify(newAllScores));
+                    setAllScores(newAllScores);
                   }
                 }}
                 onRightClick={() => {
@@ -206,26 +249,217 @@ function Board() {
         </div>
 
         {/* Reset Button on the Side */}
-        <button 
-          onClick={resetGame}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            height: "fit-content",
-            backgroundColor: "#4CAF50",
-            color: "white",
-            border: "none",
-            borderRadius: "8px",
-            cursor: "pointer",
-            fontWeight: "bold",
-            transition: "background-color 0.3s",
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
-          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
-        >
-          Reset
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <button 
+            onClick={resetGame}
+            style={{
+              padding: "10px 20px",
+              fontSize: "16px",
+              backgroundColor: "#4CAF50",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              transition: "background-color 0.3s",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
+          >
+            Reset
+          </button>
+          
+          <button 
+            onClick={() => setShowLeaderboard(!showLeaderboard)}
+            style={{
+              padding: "10px 20px",
+              fontSize: "16px",
+              backgroundColor: "#2196F3",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              fontWeight: "bold",
+              transition: "background-color 0.3s",
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#0b7dda"}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2196F3"}
+          >
+            Leaderboard
+          </button>
+        </div>
       </div>
+
+      {/* Win Modal */}
+      {isWon && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "40px 60px",
+              borderRadius: "10px",
+              textAlign: "center",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            <h1 style={{ margin: 0, fontSize: "48px", color: "#4CAF50" }}>You have Won</h1>
+            <p style={{ fontSize: "20px", color: "#333", marginTop: "10px" }}>Time: {seconds}s</p>
+            <button
+              onClick={resetGame}
+              style={{
+                marginTop: "20px",
+                padding: "10px 20px",
+                fontSize: "16px",
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                transition: "background-color 0.3s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Lose Modal */}
+      {isLost && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "40px 60px",
+              borderRadius: "10px",
+              textAlign: "center",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.3)",
+            }}
+          >
+            <h1 style={{ margin: 0, fontSize: "48px", color: "#f44336" }}>Lost this time. Give it a go again</h1>
+            <button
+              onClick={resetGame}
+              style={{
+                marginTop: "20px",
+                padding: "10px 20px",
+                fontSize: "16px",
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                transition: "background-color 0.3s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#45a049"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#4CAF50"}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard Modal */}
+      {showLeaderboard && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            backgroundColor: "rgba(0, 0, 0, 0.7)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "40px",
+              borderRadius: "10px",
+              textAlign: "center",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.3)",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              maxWidth: "600px",
+            }}
+          >
+            <h1 style={{ margin: "0 0 20px 0", fontSize: "36px", color: "#333" }}>Leaderboard</h1>
+            
+            {(["easy", "medium", "hard"] as const).map((level) => (
+              <div key={level} style={{ marginBottom: "30px", textAlign: "left" }}>
+                <h2 style={{ fontSize: "24px", color: "#2196F3", borderBottom: "2px solid #2196F3", paddingBottom: "10px" }}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </h2>
+                {allScores[level] && allScores[level].length > 0 ? (
+                  <ol style={{ paddingLeft: "20px", fontSize: "18px", color: "#333" }}>
+                    {allScores[level].map((score, index) => (
+                      <li key={index} style={{ marginBottom: "8px" }}>
+                        {score}s
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p style={{ color: "#666", fontStyle: "italic" }}>No scores yet</p>
+                )}
+              </div>
+            ))}
+
+            <button
+              onClick={() => setShowLeaderboard(false)}
+              style={{
+                marginTop: "20px",
+                padding: "10px 20px",
+                fontSize: "16px",
+                backgroundColor: "#2196F3",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                fontWeight: "bold",
+                transition: "background-color 0.3s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#0b7dda"}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2196F3"}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
