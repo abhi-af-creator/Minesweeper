@@ -37,6 +37,9 @@ function Board({ username }: BoardProps) {
   const [isLost, setIsLost] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
+  // Best time for current session only
+  const [sessionBestTime, setSessionBestTime] = useState<number | null>(null);
+
   // Best times for each difficulty (persisted separately)
   const [bestTimes, setBestTimes] = useState<Record<Difficulty, number | null>>(
     () => {
@@ -57,24 +60,36 @@ function Board({ username }: BoardProps) {
   // Load scores from database on mount and when difficulty changes
   useEffect(() => {
     fetchLeaderboard();
+    // Reset session best time when difficulty changes
+    setSessionBestTime(null);
   }, [difficulty]);
 
   const fetchLeaderboard = async () => {
     try {
+      console.log(`Fetching scores for ${difficulty}...`);
       const response = await fetch(`${API_URL}/scores/${difficulty}`);
+      
+      if (!response.ok) {
+        console.error(`API error: ${response.status} ${response.statusText}`);
+        return;
+      }
+      
       const data = await response.json();
+      console.log(`Fetched scores:`, data);
       setAllScores((prev) => ({
         ...prev,
         [difficulty]: data,
       }));
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
+      alert('Could not connect to backend. Make sure the backend server is running on port 5000');
     }
   };
 
   const saveScore = async (score: number) => {
     try {
-      await fetch(`${API_URL}/scores`, {
+      console.log(`Saving score: ${username}, ${difficulty}, ${score}`);
+      const response = await fetch(`${API_URL}/scores`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,10 +100,20 @@ function Board({ username }: BoardProps) {
           score,
         }),
       });
+
+      if (!response.ok) {
+        console.error(`API error: ${response.status} ${response.statusText}`);
+        return;
+      }
+
+      const result = await response.json();
+      console.log('Score saved:', result);
       // Refresh leaderboard after saving
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait a bit for DB to update
       fetchLeaderboard();
     } catch (error) {
       console.error('Error saving score:', error);
+      alert('Could not save score. Make sure the backend server is running on port 5000');
     }
   };
 

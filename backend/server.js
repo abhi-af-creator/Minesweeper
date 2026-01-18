@@ -8,8 +8,18 @@ const app = express();
 const PORT = 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(bodyParser.json());
+
+// Log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
 
 // Initialize SQLite Database
 const dbPath = path.join(__dirname, 'scores.db');
@@ -46,6 +56,8 @@ function initializeDatabase() {
 app.post('/api/scores', (req, res) => {
   const { username, difficulty, score } = req.body;
 
+  console.log(`Saving score - Username: ${username}, Difficulty: ${difficulty}, Score: ${score}`);
+
   if (!username || !difficulty || score === undefined) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
@@ -63,6 +75,7 @@ app.post('/api/scores', (req, res) => {
         console.error('Error inserting score:', err);
         return res.status(500).json({ error: 'Database error' });
       }
+      console.log(`Score saved successfully with ID: ${this.lastID}`);
       res.json({ id: this.lastID, message: 'Score saved successfully' });
     }
   );
@@ -71,6 +84,8 @@ app.post('/api/scores', (req, res) => {
 // Route: Get Top 5 Scores for a Difficulty
 app.get('/api/scores/:difficulty', (req, res) => {
   const { difficulty } = req.params;
+
+  console.log(`Fetching scores for difficulty: ${difficulty}`);
 
   const validDifficulties = ['easy', 'medium', 'hard'];
   if (!validDifficulties.includes(difficulty)) {
@@ -88,6 +103,7 @@ app.get('/api/scores/:difficulty', (req, res) => {
         console.error('Error fetching scores:', err);
         return res.status(500).json({ error: 'Database error' });
       }
+      console.log(`Found ${rows ? rows.length : 0} scores for ${difficulty}`);
       res.json(rows || []);
     }
   );
