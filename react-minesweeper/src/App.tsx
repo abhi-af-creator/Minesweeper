@@ -1,19 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Board from "./components/Board";
 
 function App() {
   const [username, setUsername] = useState<string | null>(null);
+  const promptShownRef = useRef(false);
 
   useEffect(() => {
-    const storedName = localStorage.getItem("username");
-    if (!storedName) {
-      const name = prompt("Enter your name:");
-      if (name) {
-        localStorage.setItem("username", name);
-        setUsername(name);
-      }
-    } else {
-      setUsername(storedName);
+    if (promptShownRef.current) return; // Prevent double prompt
+    promptShownRef.current = true;
+    
+    const name = prompt("Enter your name:");
+    if (name) {
+      setUsername(name);
     }
   }, []);
 
