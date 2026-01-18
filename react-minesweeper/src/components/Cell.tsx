@@ -4,6 +4,7 @@ type CellProps = {
   onRightClick: () => void;
   isRevealed: boolean;
   isFlagged: boolean;
+  isExploding?: boolean;
 };
 
 function Cell({
@@ -12,6 +13,7 @@ function Cell({
   onRightClick,
   isRevealed,
   isFlagged,
+  isExploding = false,
 }: CellProps) {
   return (
     <div
@@ -20,6 +22,7 @@ function Cell({
         e.preventDefault();
         onRightClick();
       }}
+      className={isExploding ? "cell-exploding" : ""}
       style={{
         width: "40px",
         height: "40px",

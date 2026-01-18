@@ -20,16 +20,20 @@ function App() {
   if (!username) return null;
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: "20px", display: "flex", flexDirection: "column", alignItems: "center", width: "100%", minHeight: "100vh" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          marginBottom: "10px",
+          alignItems: "center",
+          marginBottom: "20px",
+          width: "100%",
+          maxWidth: "1000px",
         }}
       >
-        <h2>Minesweeper</h2>
-        <div>
+        <div style={{ flex: 1 }}></div>
+        <h2 style={{ margin: 0, flex: 1, textAlign: "center" }}>Minesweeper</h2>
+        <div style={{ flex: 1, textAlign: "right" }}>
           <strong>{username}</strong>
         </div>
       </div>
